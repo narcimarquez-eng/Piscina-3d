@@ -14,5 +14,11 @@ Móvil: joystick + botón de impulso; arrastra para girar la cámara y pellizca 
   - `cesped_foto.jpg`: franjas del césped al sol de la foto, apiladas para formar una textura continua.
   - `planta_helecho.png`, `planta_cica.png`, `planta_arbusto.png`: follaje de la foto con silueta de mata, usado en las plantas del jardín.
   - `palma_abanico.png`, `palma_hoja.png`, `palma_tronco.jpg`: una hoja de abanico, una hoja de datilera (enderezada) y el tronco con escamas, recortados de la foto con el cielo eliminado. Para más nitidez se pasa la foto a resolución completa como segundo argumento.
-- La piscina (forma orgánica con playa de entrada suave), el agua, las cáusticas, la forma de las palmeras, el jacuzzi y las palomas se modelan con [Three.js](https://threejs.org) (gratuito, MIT).
+- `tools/make_jacuzzi_assets.py` saca las texturas del jacuzzi de dos fotos del jacuzzi real (no incluidas en el repositorio porque salen personas; solo se recortan zonas sin nadie):
+  - `jac_muro.jpg`: muro exterior de ladrillos colocados de pie.
+  - `jac_borde.jpg`: corona de ladrillos en abanico, "desenrollada" de la foto tomada desde arriba.
+  - `jac_gresite.jpg`: gresite crema del interior.
+  - `jac_roca.jpg`: la roca porosa del borde.
+  - `jac_colores.json`: color del agua y de las tapas de los skimmers.
+- La piscina (forma orgánica con playa de entrada suave), el agua, las cáusticas, la forma de el jacuzzi (redondo y elevado, con burbujas), las palomas se modelan con [Three.js](https://threejs.org) (gratuito, MIT).
 - Sonidos sintetizados con Web Audio, sin archivos externos.
