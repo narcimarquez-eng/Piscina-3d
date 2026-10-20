@@ -20,5 +20,5 @@ Móvil: joystick + botón de impulso; arrastra para girar la cámara y pellizca 
   - `jac_gresite.jpg`: gresite crema del interior.
   - `jac_roca.jpg`: la roca porosa del borde.
   - `jac_colores.json`: color del agua y de las tapas de los skimmers.
-- La piscina (forma orgánica con playa de entrada suave), el agua, las cáusticas, la forma de el jacuzzi (redondo y elevado, con burbujas), las palomas se modelan con [Three.js](https://threejs.org) (gratuito, MIT).
+- La piscina (forma orgánica con playa de entrada suave), el agua, las cáusticas, la forma de las palmeras y las plantas, el jacuzzi (redondo y elevado, con burbujas) y las palomas se modelan con [Three.js](https://threejs.org) (gratuito, MIT).
 - Sonidos sintetizados con Web Audio, sin archivos externos.
