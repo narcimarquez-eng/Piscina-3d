@@ -441,37 +441,82 @@ const palmSpots = [
 ];
 const palms = palmSpots.map(p => palm(...p));
 
-// Plantas del jardín: tarjetas cruzadas con follaje recortado de la foto
+// Plantas del jardín: matas frondosas con follaje recortado de la foto.
+// Cada mata = núcleo abultado con la foto del follaje + ~8 hojas recortadas a distintos ángulos.
+// Todas las matas de un mismo tipo se funden en una sola malla (pocas llamadas de dibujo en el móvil).
 const plantTex = ['assets/planta_helecho.png', 'assets/planta_cica.png', 'assets/planta_arbusto.png'].map(url => {
   const t = loader.load(url); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
 });
-const plantMats = plantTex.map(map => new THREE.MeshStandardMaterial({ map, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.9 }));
+const plantMats = plantTex.map(map => new THREE.MeshStandardMaterial({ map, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9 }));
+const coreMats = plantTex.map(map => new THREE.MeshStandardMaterial({ map, color: 0xb8c4a8, roughness: 1 }));
 const plantDepth = plantTex.map(map => depthMat(map));
-const plantGeo = new THREE.PlaneGeometry(1, 0.75); plantGeo.translate(0, 0.375, 0);
-function plant(x, z, size, kind) {
-  const g = new THREE.Group();
-  const cards = 3;
-  for (let i = 0; i < cards; i++) {
-    const m = new THREE.Mesh(plantGeo, plantMats[kind]);
-    m.customDepthMaterial = plantDepth[kind];
-    m.rotation.y = (i / cards) * Math.PI + Math.random() * 0.3;
-    m.castShadow = true; m.receiveShadow = true;
-    g.add(m);
+const cardGeo = new THREE.PlaneGeometry(1, 0.75, 2, 2); cardGeo.translate(0, 0.375, 0);
+const coreGeo = (() => {
+  const g = new THREE.IcosahedronGeometry(0.5, 2);
+  const p = g.attributes.position, v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    const n = 1 + 0.16 * Math.sin(v.x * 11 + 2) * Math.sin(v.z * 9) + 0.1 * Math.sin(v.y * 15 + v.x * 7);
+    p.setXYZ(i, v.x * n, Math.max(-0.05, v.y * n * 0.75), v.z * n);
   }
-  g.scale.setScalar(size);
-  g.position.set(x, 0, z);
-  g.rotation.y = Math.random() * Math.PI;
-  scene.add(g);
+  g.computeVertexNormals();
+  return g;
+})();
+function mergeGeos(parts) {
+  const out = { position: [], normal: [], uv: [] };
+  for (const [geo, m] of parts) {
+    let g = geo.clone().applyMatrix4(m);
+    if (g.index) g = g.toNonIndexed();
+    for (const k in out) out[k].push(g.attributes[k].array);
+  }
+  const merged = new THREE.BufferGeometry();
+  for (const k in out) {
+    const len = out[k].reduce((n, a) => n + a.length, 0), arr = new Float32Array(len);
+    let o = 0; for (const a of out[k]) { arr.set(a, o); o += a.length; }
+    merged.setAttribute(k, new THREE.BufferAttribute(arr, k === 'uv' ? 2 : 3));
+  }
+  return merged;
 }
-// fuera de la piscina y del borde de arena, sin pisar las palmeras
-for (let placed = 0, tries = 0; placed < 46 && tries < 2000; tries++) {
+const plantParts = [[], [], []], coreParts = [[], [], []];
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _s = new THREE.Vector3();
+function plant(x, z, size, kind) {
+  const base = Math.random() * Math.PI;
+  // núcleo: rellena el centro para que no se vea vacío
+  _e.set(0, base, 0); _q.setFromEuler(_e);
+  _m.compose(_v.set(x, size * 0.12, z), _q, _s.set(size * 0.9, size * 0.7, size * 0.9));
+  coreParts[kind].push([coreGeo, _m.clone()]);
+  // hojas: anillo exterior inclinado hacia fuera + algunas centrales más altas
+  const cards = 8;
+  for (let i = 0; i < cards; i++) {
+    const outer = i < 6;
+    const ang = base + (i / cards) * Math.PI * 2 + Math.random() * 0.4;
+    const off = outer ? size * (0.12 + Math.random() * 0.12) : size * 0.04;
+    const sc = size * (outer ? 0.75 + Math.random() * 0.3 : 0.95 + Math.random() * 0.25);
+    _e.set(outer ? -(0.25 + Math.random() * 0.35) : (Math.random() - 0.5) * 0.2, ang, (Math.random() - 0.5) * 0.25, 'YXZ');
+    _q.setFromEuler(_e);
+    // la hoja mira hacia fuera y se separa un poco del centro
+    _m.compose(_v.set(x + Math.sin(ang) * off, -0.02, z + Math.cos(ang) * off), _q, _s.set(sc, sc * (0.85 + Math.random() * 0.3), sc));
+    plantParts[kind].push([cardGeo, _m.clone()]);
+  }
+}
+// fuera de la piscina y del borde de arena, sin pisar las palmeras ni el jacuzzi
+for (let placed = 0, tries = 0; placed < 60 && tries < 3000; tries++) {
   const a = Math.random() * Math.PI * 2, r = 14 + Math.random() * 26;
   const x = Math.cos(a) * r * 1.15, z = Math.sin(a) * r * 0.95;
   if (Math.hypot(x, z) > 43 || poolT(x, z) < 1.45) continue;
   if (Math.hypot(x - JAC.x, z - JAC.z) < JAC.rOut + 1.5) continue;
   if (palmSpots.some(p => Math.hypot(x - p[0], z - p[1]) < 1.6)) continue;
-  plant(x, z, 3 + Math.random() * 3.2, Math.floor(Math.random() * 3));
+  plant(x, z, 2.6 + Math.random() * 2.8, Math.floor(Math.random() * 3));
   placed++;
+}
+for (let k = 0; k < 3; k++) {
+  if (!plantParts[k].length) continue;
+  const cards = new THREE.Mesh(mergeGeos(plantParts[k]), plantMats[k]);
+  cards.customDepthMaterial = plantDepth[k];
+  cards.castShadow = cards.receiveShadow = true;
+  const core = new THREE.Mesh(mergeGeos(coreParts[k]), coreMats[k]);
+  core.castShadow = core.receiveShadow = true;
+  scene.add(cards, core);
 }
 
 // Focos de la piscina (como en la foto)

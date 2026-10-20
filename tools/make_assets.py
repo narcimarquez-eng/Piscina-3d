@@ -144,7 +144,7 @@ def plant_card(box, seed, gain, name):
     img = crop_g(*box).resize((512, 384), Image.LANCZOS)
     c = np.asarray(img).astype(np.float32)
     lum = c.mean(2)
-    holes = lum > np.percentile(lum, 18)        # huecos donde el follaje es más oscuro
+    holes = lum > np.percentile(lum, 8)         # pocos huecos: solo donde el follaje es más oscuro
     alpha = (bush_mask(512, 384, seed) & holes) * 255
     c = np.clip(c * gain, 0, 255)               # están en sombra: se aclaran un poco
     out = Image.fromarray(np.dstack([c, alpha]).astype(np.uint8), "RGBA")

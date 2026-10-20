@@ -12,7 +12,7 @@ Móvil: joystick + botón de impulso; arrastra para girar la cámara y pellizca 
   - `arena_fondo.jpg`: recorte real de la arena sumergida, usado como fondo de la piscina.
   - `arena_borde.jpg`: el grano de la arena con el color medido en el borde de la foto.
   - `cesped_foto.jpg`: franjas del césped al sol de la foto, apiladas para formar una textura continua.
-  - `planta_helecho.png`, `planta_cica.png`, `planta_arbusto.png`: follaje de la foto con silueta de mata, usado en las plantas del jardín.
+  - `planta_helecho.png`, `planta_cica.png`, `planta_arbusto.png`: follaje de la foto con silueta de mata. Cada planta del jardín es un núcleo abultado con ese follaje más unas 8 hojas recortadas a distintos ángulos.
   - `palma_abanico.png`, `palma_hoja.png`, `palma_tronco.jpg`: una hoja de abanico, una hoja de datilera (enderezada) y el tronco con escamas, recortados de la foto con el cielo eliminado. Para más nitidez se pasa la foto a resolución completa como segundo argumento.
 - `tools/make_jacuzzi_assets.py` saca las texturas del jacuzzi de dos fotos del jacuzzi real (no incluidas en el repositorio porque salen personas; solo se recortan zonas sin nadie):
   - `jac_muro.jpg`: muro exterior de ladrillos colocados de pie.
