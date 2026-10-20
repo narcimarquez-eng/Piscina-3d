@@ -52,8 +52,8 @@
     <ul>
       <li>🏐 Pelota: 10 pts · ⭐ Estrella: 25 pts · 🥥 Coco dorado: 60 pts</li>
       <li>¡Cuidado! Caen cocos de las palmeras: esquiva la sombra roja.</li>
-      <li>Móvil: joystick a la izquierda, botón de impulso a la derecha.</li>
-      <li>Teclado: flechas / WASD y espacio para el impulso.</li>
+      <li>Móvil: joystick a la izquierda, botón de impulso a la derecha. Arrastra en la pantalla para girar la cámara y pellizca para acercarla.</li>
+      <li>Ordenador: flechas / WASD y espacio para el impulso. Arrastra con el ratón (o Q / E) para girar la cámara y usa la rueda para el zoom.</li>
     </ul>
     <p id="best"></p>
     <button id="play">Jugar</button>
@@ -171,7 +171,7 @@ geo.computeVertexNormals();
 
 const sandFloor = tex('assets/arena_fondo.jpg', 18);
 const sandDeck = tex('assets/arena_borde.jpg', 18);
-const grassTex = tex('assets/cesped.jpg', 30);
+const grassTex = tex('assets/cesped_foto.jpg', 30);
 const uTime = { value: 0 };
 
 const groundMat = new THREE.MeshStandardMaterial({ map: sandFloor, vertexColors: true, roughness: 0.95, color: 0xf2e2c8 });
@@ -202,7 +202,10 @@ groundMat.onBeforeCompile = (sh) => {
     .replace('#include <map_fragment>', `
       vec4 floorC = texture2D(map, vMapUv);
       vec4 deckC = texture2D(deckMap, vMapUv);
+      // césped de la foto a dos escalas para que no se note la repetición
       vec4 grassC = texture2D(grassMap, vMapUv * 1.6);
+      float patchy = texture2D(grassMap, vMapUv * 0.21 + 0.37).g;
+      grassC.rgb *= 0.78 + patchy * 0.45;
       float under = smoothstep(0.02, -0.15, vWorld.y);
       vec4 sandC = mix(deckC, floorC, under);
       diffuseColor *= mix(grassC, sandC, vSand);
@@ -342,13 +345,37 @@ const palmSpots = [
 ];
 const palms = palmSpots.map(p => palm(...p));
 
-// Arbustos sencillos alrededor
-const bushMat = new THREE.MeshStandardMaterial({ color: 0x3f6b2a, roughness: 1 });
-for (let i = 0; i < 26; i++) {
-  const a = Math.random() * Math.PI * 2, r = 22 + Math.random() * 10;
-  const b = new THREE.Mesh(new THREE.IcosahedronGeometry(1 + Math.random() * 1.6, 1), bushMat);
-  b.position.set(Math.cos(a) * r * 1.2, 0.6, Math.sin(a) * r * 0.9);
-  b.scale.y = 0.7; b.castShadow = true; scene.add(b);
+// Plantas del jardín: tarjetas cruzadas con follaje recortado de la foto
+const plantTex = ['assets/planta_helecho.png', 'assets/planta_cica.png', 'assets/planta_arbusto.png'].map(url => {
+  const t = loader.load(url); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+});
+const plantMats = plantTex.map(map => new THREE.MeshStandardMaterial({ map, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.9 }));
+const plantDepth = plantTex.map(map => depthMat(map));
+const plantGeo = new THREE.PlaneGeometry(1, 0.75); plantGeo.translate(0, 0.375, 0);
+function plant(x, z, size, kind) {
+  const g = new THREE.Group();
+  const cards = 3;
+  for (let i = 0; i < cards; i++) {
+    const m = new THREE.Mesh(plantGeo, plantMats[kind]);
+    m.customDepthMaterial = plantDepth[kind];
+    m.rotation.y = (i / cards) * Math.PI + Math.random() * 0.3;
+    m.castShadow = true; m.receiveShadow = true;
+    g.add(m);
+  }
+  g.scale.setScalar(size);
+  g.position.set(x, 0, z);
+  g.rotation.y = Math.random() * Math.PI;
+  scene.add(g);
+}
+// fuera de la piscina y del borde de arena, sin pisar las palmeras
+for (let placed = 0, tries = 0; placed < 46 && tries < 2000; tries++) {
+  const a = Math.random() * Math.PI * 2, r = 14 + Math.random() * 26;
+  const x = Math.cos(a) * r * 1.15, z = Math.sin(a) * r * 0.95;
+  if (Math.hypot(x, z) > 43 || poolT(x, z) < 1.45) continue;
+  if (Math.hypot(x - jac.position.x, z - jac.position.z) < 4.5) continue;
+  if (palmSpots.some(p => Math.hypot(x - p[0], z - p[1]) < 1.6)) continue;
+  plant(x, z, 3 + Math.random() * 3.2, Math.floor(Math.random() * 3));
+  placed++;
 }
 
 // Focos de la piscina (como en la foto)
@@ -505,6 +532,41 @@ joy.addEventListener('pointermove', e => { if (e.pointerId === joyId) joyMove(e)
 const joyEnd = e => { if (e.pointerId === joyId) { joyId = null; joyVec.set(0, 0); knob.style.transform = ''; } };
 joy.addEventListener('pointerup', joyEnd); joy.addEventListener('pointercancel', joyEnd);
 document.getElementById('dash').addEventListener('pointerdown', e => { e.preventDefault(); dashReq = true; });
+
+// Cámara: arrastrar para girar, rueda o pellizco para acercar/alejar
+const cam = { yaw: 0, pitch: 0.55, dist: 10 };
+const camPointers = new Map();
+let pinchDist = 0;
+const canvasEl = renderer.domElement;
+const clampCam = () => {
+  cam.pitch = THREE.MathUtils.clamp(cam.pitch, 0.08, 1.45);
+  cam.dist = THREE.MathUtils.clamp(cam.dist, 4, 28);
+};
+const pinchLen = () => { const [a, b] = [...camPointers.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+canvasEl.addEventListener('pointerdown', e => {
+  canvasEl.setPointerCapture(e.pointerId);
+  camPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (camPointers.size === 2) pinchDist = pinchLen();
+});
+canvasEl.addEventListener('pointermove', e => {
+  const p = camPointers.get(e.pointerId);
+  if (!p) return;
+  if (camPointers.size === 1) {
+    cam.yaw -= (e.clientX - p.x) * 0.006;
+    cam.pitch += (e.clientY - p.y) * 0.005;
+  }
+  p.x = e.clientX; p.y = e.clientY;
+  if (camPointers.size === 2) {
+    const d = pinchLen();
+    if (pinchDist) cam.dist *= pinchDist / d;
+    pinchDist = d;
+  }
+  clampCam();
+});
+const camUp = e => { camPointers.delete(e.pointerId); pinchDist = camPointers.size === 2 ? pinchLen() : 0; };
+canvasEl.addEventListener('pointerup', camUp);
+canvasEl.addEventListener('pointercancel', camUp);
+canvasEl.addEventListener('wheel', e => { e.preventDefault(); cam.dist *= Math.exp(e.deltaY * 0.001); clampCam(); }, { passive: false });
 
 // ---------- Estado del juego ----------
 const clock = new THREE.Clock();
@@ -666,11 +728,14 @@ function loop() {
   // palmeras mecidas por el viento
   palms.forEach((p, i) => { p.rotation.z = Math.sin(t * 0.8 + i) * 0.012; });
 
-  // cámara: detrás del jugador (o vuelta panorámica en el menú)
+  // cámara: orbita alrededor del jugador (o vuelta panorámica en el menú)
   if (state.playing) {
-    tmp.set(player.position.x * 0.85, 5.2, player.position.z + 8.5);
-    camera.position.lerp(tmp, 1 - Math.pow(0.05, dt));
-    camTarget.lerp(new THREE.Vector3(player.position.x, 0.6, player.position.z), 1 - Math.pow(0.001, dt));
+    if (keys.KeyQ) cam.yaw += dt * 1.8;
+    if (keys.KeyE) cam.yaw -= dt * 1.8;
+    camTarget.lerp(tmp.set(player.position.x, 0.6, player.position.z), 1 - Math.pow(0.001, dt));
+    const cp = Math.cos(cam.pitch);
+    tmp.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp).multiplyScalar(cam.dist).add(camTarget);
+    camera.position.lerp(tmp, 1 - Math.pow(0.0005, dt));
   } else {
     const a = t * 0.08;
     camera.position.lerp(tmp.set(Math.sin(a) * 20, 6 + Math.sin(t * 0.3), Math.cos(a) * 15), 1 - Math.pow(0.2, dt));

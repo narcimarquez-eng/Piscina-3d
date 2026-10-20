@@ -1,8 +1,9 @@
 """Genera las texturas del juego a partir de la foto de la piscina.
 
 Uso:  python3 tools/make_assets.py assets/foto-original.jpg [foto-a-resolucion-completa.jpg]
-Crea en assets/: fondo.jpg (panorama 360), arena_fondo.jpg, arena_borde.jpg, cesped.jpg,
-palma_abanico.png, palma_hoja.png, palma_tronco.jpg
+Crea en assets/: fondo.jpg (panorama 360), arena_fondo.jpg, arena_borde.jpg, cesped_foto.jpg,
+palma_abanico.png, palma_hoja.png, palma_tronco.jpg,
+planta_helecho.png, planta_cica.png, planta_arbusto.png
 """
 import sys
 import numpy as np
@@ -58,13 +59,6 @@ lum = fa.mean(2, keepdims=True)
 da = (lum - lum.mean()) * 0.9 + deck
 Image.fromarray(np.clip(da, 0, 255).astype(np.uint8)).save("assets/arena_borde.jpg", quality=85)
 
-# --- 4. Cesped procedural con el color medio de la foto ---
-g = rng.normal(0, 1, (512, 512, 1)).astype(np.float32)
-gi = Image.fromarray(np.clip(128 + g[..., 0] * 60, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.8))
-g = (np.asarray(gi).astype(np.float32)[..., None] - 128) / 60
-ga = grass * 1.1 + g * np.array([18, 26, 10])
-Image.fromarray(np.clip(ga, 0, 255).astype(np.uint8)).save("assets/cesped.jpg", quality=80)
-
 print("colores -> borde", deck.round(), "cesped", grass.round(), "cielo", sky.round())
 
 # --- 5. Palmeras: hojas y tronco recortados de la foto ---
@@ -102,4 +96,61 @@ frond.transpose(Image.FLIP_LEFT_RIGHT).resize((768, 206), Image.LANCZOS).save("a
 
 # Tronco con escamas de la palmera datilera
 # (girado 90 grados para que el largo del tronco vaya en horizontal, como la UV del tubo 3D)
-crop_g(888, 185, 922, 240).resize((256, 414), Image.LANCZOS).transpose(Image.ROTATE_90).save("assets/palma_tronco.jpg", quality=85)
+crop_g(887, 185, 913, 240).resize((256, 541), Image.LANCZOS).transpose(Image.ROTATE_90).save("assets/palma_tronco.jpg", quality=85)
+
+# --- 6. Césped real de la foto ---
+# La franja de césped al sol está muy escorzada; en vez de estirarla mucho, se apilan
+# varias franjas (con volteos y desplazamientos) fundiendo las uniones.
+strip_g = np.asarray(crop_g(10, 364, 150, 376)).astype(np.float32)
+sw = strip_g.shape[1]
+strip_g = np.asarray(Image.fromarray(strip_g.astype(np.uint8)).resize((sw, strip_g.shape[0] * 2), Image.LANCZOS)).astype(np.float32)
+shh = strip_g.shape[0]
+ov = max(6, shh // 5)
+rows = 6
+tile = np.zeros((rows * (shh - ov) + ov, sw, 3), np.float32)
+wsum = np.zeros(tile.shape[:2] + (1,), np.float32)
+ramp = np.ones((shh, 1, 1), np.float32)
+ramp[:ov, 0, 0] = np.linspace(0.05, 1, ov)
+ramp[-ov:, 0, 0] = np.linspace(1, 0.05, ov)
+for i in range(rows):
+    s_ = np.roll(strip_g, int(rng.integers(0, sw)), axis=1)
+    if i % 2:
+        s_ = s_[:, ::-1]
+    y = i * (shh - ov)
+    tile[y:y + shh] += s_ * ramp
+    wsum[y:y + shh] += ramp
+tile /= wsum
+Image.fromarray(np.clip(tile, 0, 255).astype(np.uint8)).resize((512, 512), Image.LANCZOS).save(
+    "assets/cesped_foto.jpg", quality=85)
+
+# --- 7. Plantas del jardín: follaje de la foto con silueta de arbusto ---
+def bush_mask(w, h, seed):
+    """Silueta de mata: cúpula apoyada en el suelo con borde irregular de hojas."""
+    r = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    u = (xx / w - 0.5) * 2                     # -1..1
+    v = 1 - yy / h                             # 0 abajo, 1 arriba
+    ang = np.arctan2(v, u)
+    edge = np.ones_like(u)
+    for f in (5, 9, 17, 31):                   # borde ondulado tipo hojas
+        edge += r.uniform(0.04, 0.09) * np.sin(ang * f + r.uniform(0, 6))
+    dome = np.sqrt(u ** 2 + (v * 1.05) ** 2) / (0.95 * edge)
+    noise = np.asarray(Image.fromarray(r.integers(0, 255, (h // 8, w // 8), dtype=np.uint8))
+                       .resize((w, h), Image.BICUBIC)).astype(np.float32) / 255
+    return (dome + (noise - 0.5) * 0.35) < 1
+
+
+def plant_card(box, seed, gain, name):
+    img = crop_g(*box).resize((512, 384), Image.LANCZOS)
+    c = np.asarray(img).astype(np.float32)
+    lum = c.mean(2)
+    holes = lum > np.percentile(lum, 18)        # huecos donde el follaje es más oscuro
+    alpha = (bush_mask(512, 384, seed) & holes) * 255
+    c = np.clip(c * gain, 0, 255)               # están en sombra: se aclaran un poco
+    out = Image.fromarray(np.dstack([c, alpha]).astype(np.uint8), "RGBA")
+    out.filter(ImageFilter.MedianFilter(3)).save(f"assets/{name}")
+
+
+plant_card((700, 285, 880, 340), 1, 1.35, "planta_helecho.png")    # helechos a la derecha
+plant_card((210, 268, 335, 347), 2, 1.45, "planta_cica.png")       # cica (palmera enana) a la izquierda
+plant_card((505, 262, 640, 331), 3, 1.3, "planta_arbusto.png")     # arbustos junto al jacuzzi
