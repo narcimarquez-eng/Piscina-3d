@@ -11,5 +11,6 @@ Móvil: joystick + botón de impulso. Teclado: flechas/WASD + espacio.
   - `fondo.jpg`: el jardín de la foto convertido en panorama 360° (fondo y reflejos del agua).
   - `arena_fondo.jpg`: recorte real de la arena sumergida, usado como fondo de la piscina.
   - `arena_borde.jpg` y `cesped.jpg`: texturas con los colores medidos en la foto.
-- La piscina (forma orgánica con playa de entrada suave), el agua, las cáusticas, las palmeras, el jacuzzi y las palomas se modelan con [Three.js](https://threejs.org) (gratuito, MIT).
+  - `palma_abanico.png`, `palma_hoja.png`, `palma_tronco.jpg`: una hoja de abanico, una hoja de datilera (enderezada) y el tronco con escamas, recortados de la foto con el cielo eliminado. Para más nitidez se pasa la foto a resolución completa como segundo argumento.
+- La piscina (forma orgánica con playa de entrada suave), el agua, las cáusticas, la forma de las palmeras, el jacuzzi y las palomas se modelan con [Three.js](https://threejs.org) (gratuito, MIT).
 - Sonidos sintetizados con Web Audio, sin archivos externos.

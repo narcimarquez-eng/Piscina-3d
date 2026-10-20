@@ -263,47 +263,72 @@ jac.add(ring, brick, jWater);
 jac.position.set(-1.5, 0, -RZ * 1.05 - 1.4);
 scene.add(jac);
 
-// ---------- Palmeras procedurales ----------
-const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8a6e4b, roughness: 1 });
-const frondMat = new THREE.MeshStandardMaterial({ color: 0x5f9a2e, roughness: 0.8, side: THREE.DoubleSide });
-const fanMat = new THREE.MeshStandardMaterial({ color: 0x79b43a, roughness: 0.7, side: THREE.DoubleSide });
+// ---------- Palmeras con texturas recortadas de la foto ----------
+function leafTex(url) {
+  const t = loader.load(url);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
+}
+const trunkTex = tex('assets/palma_tronco.jpg');
+trunkTex.wrapS = trunkTex.wrapT = THREE.MirroredRepeatWrapping;
+const fanTex = leafTex('assets/palma_abanico.png');
+const frondTex = leafTex('assets/palma_hoja.png');
+const trunkMat = new THREE.MeshStandardMaterial({ map: trunkTex, roughness: 1 });
+const leafProps = { alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.75 };
+const frondMat = new THREE.MeshStandardMaterial({ map: frondTex, ...leafProps });
+const fanMat = new THREE.MeshStandardMaterial({ map: fanTex, ...leafProps });
+// sombras con la silueta real de las hojas
+const depthMat = map => new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map, alphaTest: 0.5 });
+const frondDepth = depthMat(frondTex), fanDepth = depthMat(fanTex);
 const palmTops = [];
+// Hoja de datilera: banda con la foto de la hoja, caída hacia abajo
 function frondGeo(len) {
-  const shape = new THREE.Shape();
-  shape.moveTo(0, 0);
-  shape.quadraticCurveTo(len * 0.5, 0.55, len, 0);
-  shape.quadraticCurveTo(len * 0.5, -0.55, 0, 0);
-  const g = new THREE.ShapeGeometry(shape, 8);
+  const g = new THREE.PlaneGeometry(len, len / 3.2, 16, 1);
+  g.translate(len / 2, 0, 0);
+  g.rotateX(-Math.PI / 2);
   const p = g.attributes.position;
-  for (let i = 0; i < p.count; i++) { const x = p.getX(i); p.setZ(i, -Math.pow(x / len, 2) * len * 0.45); }
+  for (let i = 0; i < p.count; i++) {
+    const u = p.getX(i) / len;
+    p.setY(i, u * len * 0.3 - u * u * len * 0.75 - Math.abs(p.getZ(i)) * 0.25);
+  }
   g.computeVertexNormals();
   return g;
 }
+// Hoja de abanico: sector circular con la foto centrada en el peciolo
+const fanGeo = new THREE.CircleGeometry(2.3, 28, -0.25, Math.PI + 0.5);
 function palm(x, z, h, lean, fan) {
   const g = new THREE.Group();
   const pts = [];
   for (let i = 0; i <= 8; i++) { const t = i / 8; pts.push(new THREE.Vector3(Math.sin(lean.a) * lean.d * t * t, h * t, Math.cos(lean.a) * lean.d * t * t)); }
   const curve = new THREE.CatmullRomCurve3(pts);
-  const trunk = new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.28, 8), trunkMat);
+  const tg = new THREE.TubeGeometry(curve, 20, fan ? 0.24 : 0.32, 10);
+  const uv = tg.attributes.uv;                        // repetir las escamas a lo largo del tronco
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * h * 1.4, uv.getY(i) * 2);
+  const trunk = new THREE.Mesh(tg, trunkMat);
   trunk.castShadow = true; g.add(trunk);
   const top = pts[8];
-  const n = fan ? 16 : 11;
+  const n = fan ? 16 : 12;
   for (let i = 0; i < n; i++) {
+    const pivot = new THREE.Group();
+    pivot.position.copy(top);
+    pivot.rotation.y = (i / n) * Math.PI * 2 + Math.random() * 0.3;
     let m;
     if (fan) {
-      m = new THREE.Mesh(new THREE.CircleGeometry(1.6, 12, -0.6, 1.2), fanMat);
-      m.position.copy(top);
-      m.rotation.set(-Math.PI / 2 + 0.5 + Math.random() * 0.6, 0, 0, 'YXZ');
-      m.rotation.y = (i / n) * Math.PI * 2;
+      m = new THREE.Mesh(fanGeo, fanMat);
+      m.customDepthMaterial = fanDepth;
+      m.position.z = 0.3;
+      m.rotation.x = 0.35 + Math.random() * 0.9;      // inclinación hacia fuera
+      m.rotation.z = (Math.random() - 0.5) * 0.4;
     } else {
       m = new THREE.Mesh(frondGeo(4 + Math.random() * 1.5), frondMat);
-      m.position.copy(top);
+      m.customDepthMaterial = frondDepth;
       m.rotation.order = 'YZX';
-      m.rotation.y = (i / n) * Math.PI * 2 + Math.random() * 0.3;
-      m.rotation.z = 0.25 + Math.random() * 0.4;
-      m.rotation.x = Math.PI / 2;
+      m.rotation.y = -Math.PI / 2;                      // la hoja crece hacia fuera (+z del pivote)
+      m.rotation.z = Math.random() * 0.35;
+      m.rotation.x = (Math.random() - 0.5) * 0.5;       // giro sobre su eje
     }
-    m.castShadow = true; g.add(m);
+    m.castShadow = true;
+    pivot.add(m); g.add(pivot);
   }
   g.position.set(x, 0, z);
   scene.add(g);

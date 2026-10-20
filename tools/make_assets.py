@@ -1,7 +1,8 @@
 """Genera las texturas del juego a partir de la foto de la piscina.
 
-Uso:  python3 tools/make_assets.py assets/foto-original.jpg
-Crea en assets/: fondo.jpg (panorama 360), arena_fondo.jpg, arena_borde.jpg, cesped.jpg
+Uso:  python3 tools/make_assets.py assets/foto-original.jpg [foto-a-resolucion-completa.jpg]
+Crea en assets/: fondo.jpg (panorama 360), arena_fondo.jpg, arena_borde.jpg, cesped.jpg,
+palma_abanico.png, palma_hoja.png, palma_tronco.jpg
 """
 import sys
 import numpy as np
@@ -65,3 +66,40 @@ ga = grass * 1.1 + g * np.array([18, 26, 10])
 Image.fromarray(np.clip(ga, 0, 255).astype(np.uint8)).save("assets/cesped.jpg", quality=80)
 
 print("colores -> borde", deck.round(), "cesped", grass.round(), "cielo", sky.round())
+
+# --- 5. Palmeras: hojas y tronco recortados de la foto ---
+# Si se pasa la foto a resolución completa como 2º argumento, se usa para más nitidez.
+hi = Image.open(sys.argv[2]).convert("RGB") if len(sys.argv) > 2 else src
+k = hi.size[0] / 1000          # coordenadas en una rejilla de 1000 x 750 sobre la foto
+
+
+def crop_g(x0, y0, x1, y1):
+    return hi.crop(tuple(int(v * k) for v in (x0, y0, x1, y1)))
+
+
+def leaf_alpha(img, min_lum=85):
+    """Alfa: quita el cielo azul y el fondo oscuro, deja las hojas."""
+    c = np.asarray(img).astype(np.float32)
+    r, g, b = c[..., 0], c[..., 1], c[..., 2]
+    lum = 0.3 * r + 0.59 * g + 0.11 * b
+    sky = (b > r + 20) & (b > g - 10)
+    keep = (~sky) & (lum > min_lum)
+    alpha = Image.fromarray((keep * 255).astype(np.uint8)).filter(ImageFilter.MedianFilter(3))
+    rgba = img.convert("RGBA")
+    rgba.putalpha(alpha)
+    return rgba
+
+
+# Hoja de abanico del palmito central-izquierdo, centrada en su peciolo
+fan = crop_g(432, 125, 562, 255).resize((512, 512), Image.LANCZOS)
+leaf_alpha(fan, 90).save("assets/palma_abanico.png")
+
+# Hoja de la palmera datilera (arriba a la derecha): se endereza y se recorta.
+# La base queda a la izquierda (u = 0) y la punta a la derecha.
+frond = leaf_alpha(crop_g(590, 15, 690, 95).resize((1024, 820), Image.LANCZOS), 80)
+frond = frond.rotate(-32, center=(522, 400), resample=Image.BICUBIC).crop((20, 390, 1024, 660))
+frond.transpose(Image.FLIP_LEFT_RIGHT).resize((768, 206), Image.LANCZOS).save("assets/palma_hoja.png")
+
+# Tronco con escamas de la palmera datilera
+# (girado 90 grados para que el largo del tronco vaya en horizontal, como la UV del tubo 3D)
+crop_g(888, 185, 922, 240).resize((256, 414), Image.LANCZOS).transpose(Image.ROTATE_90).save("assets/palma_tronco.jpg", quality=85)
