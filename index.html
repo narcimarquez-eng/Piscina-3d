@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Piscina Mazagón 3D</title>
+<style>
+  :root {
+    --ink: #10243a;
+    --panel: rgba(255, 255, 255, 0.86);
+    --accent: #ff3b3b;
+    --sun: #ffc22e;
+    --cloud: #8796a8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #8fd3ff; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); user-select: none; -webkit-user-select: none; touch-action: none; }
+  #game { position: fixed; inset: 0; }
+  #game canvas { display: block; }
+
+  .hud { position: fixed; pointer-events: none; z-index: 5; }
+  .card { background: var(--panel); border-radius: 14px; padding: 8px 14px; box-shadow: 0 4px 16px rgba(0,0,0,.15); backdrop-filter: blur(4px); }
+
+  #score { top: 12px; left: 12px; }
+  #score .label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+  #score .value { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+  #pool { top: 12px; right: 12px; text-align: right; }
+  #pool .label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+  #pool .icons { font-size: 22px; letter-spacing: 2px; }
+  #pool .icons span { opacity: .22; filter: grayscale(1); transition: all .3s; }
+  #pool .icons span.on { opacity: 1; filter: none; }
+
+  #weather { top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; }
+  #sky { position: relative; width: 46px; height: 46px; border-radius: 50%; background: #9fdcff; overflow: hidden; transition: background .6s; }
+  #sky .s { position: absolute; left: 7px; top: 7px; width: 32px; height: 32px; border-radius: 50%; background: radial-gradient(circle, #fff6b0 0%, var(--sun) 55%, #ff9d00 100%); box-shadow: 0 0 14px 4px rgba(255,200,40,.8); transition: box-shadow .6s; }
+  #sky .c { position: absolute; top: 9px; left: 60px; font-size: 30px; line-height: 1; transition: left .7s ease-in-out; }
+  #weather.cloudy #sky { background: #b9c4cf; }
+  #weather.cloudy #sky .s { box-shadow: none; }
+  #weather.cloudy #sky .c { left: 6px; }
+  #weatherText .t { font-weight: 800; font-size: 15px; }
+  #weatherText .d { font-size: 12px; opacity: .75; }
+  #weatherWarn { font-size: 11px; font-weight: 700; color: #c2410c; height: 13px; }
+
+  #laser { bottom: 16px; left: 50%; transform: translateX(-50%); width: min(320px, 70vw); text-align: center; }
+  #laser .label { font-size: 12px; font-weight: 800; letter-spacing: .08em; margin-bottom: 5px; }
+  #laser .bar { height: 10px; background: rgba(0,0,0,.12); border-radius: 6px; overflow: hidden; }
+  #laser .fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff7a7a, var(--accent)); border-radius: 6px; }
+  #laser.ready .label { color: var(--accent); }
+  #laser.nosun .fill { background: var(--cloud); }
+
+  #hint { top: 92px; left: 50%; transform: translateX(-50%); font-weight: 700; font-size: 14px; opacity: 0; transition: opacity .25s; white-space: nowrap; }
+  #hint.show { opacity: 1; }
+
+  #help { bottom: 16px; left: 12px; font-size: 12px; line-height: 1.5; }
+  #help b { display: inline-block; min-width: 22px; text-align: center; background: rgba(0,0,0,.08); border-radius: 4px; padding: 0 4px; margin-right: 2px; }
+
+  #camBtn { position: fixed; top: 74px; right: 12px; z-index: 6; border: 0; border-radius: 10px; padding: 6px 10px; background: var(--panel); font-weight: 700; cursor: pointer; }
+
+  .popup { position: fixed; z-index: 4; pointer-events: none; font-weight: 900; font-size: 22px; transform: translate(-50%, -50%); text-shadow: 0 2px 0 #fff, 0 0 8px rgba(255,255,255,.9); white-space: nowrap; }
+  .arrow { position: fixed; z-index: 4; pointer-events: none; width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 18px solid #ff6a00; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); transform-origin: 50% 60%; display: none; }
+
+  .overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(10, 30, 50, .45); }
+  .overlay.hidden { display: none; }
+  .dialog { background: #fff; border-radius: 20px; padding: 22px 24px; max-width: 520px; width: 100%; max-height: 92vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+  .dialog h1 { margin: 0 0 4px; font-size: 26px; }
+  .dialog h2 { margin: 0 0 14px; font-size: 15px; font-weight: 600; opacity: .7; }
+  .dialog ul { padding-left: 18px; margin: 8px 0 16px; font-size: 14px; line-height: 1.55; }
+  .dialog .big { font-size: 42px; font-weight: 900; margin: 6px 0; }
+  .dialog button { width: 100%; border: 0; border-radius: 12px; padding: 13px; font-size: 17px; font-weight: 800; color: #fff; background: linear-gradient(180deg, #ff5a5a, #e02020); cursor: pointer; }
+  .dialog button:hover { filter: brightness(1.08); }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 16px; font-size: 14px; }
+  .stats div { background: #f2f6fa; border-radius: 10px; padding: 8px 10px; }
+
+  #touch { position: fixed; inset: auto 0 64px 0; z-index: 6; display: none; justify-content: space-between; padding: 0 14px; pointer-events: none; }
+  #touch .grp { display: flex; gap: 10px; align-items: flex-end; pointer-events: auto; }
+  #touch .col { display: flex; flex-direction: column; gap: 10px; }
+  #touch button { width: 62px; height: 62px; border-radius: 50%; border: 0; font-size: 24px; font-weight: 900; background: rgba(255,255,255,.8); box-shadow: 0 3px 10px rgba(0,0,0,.2); touch-action: none; }
+  #touch button.fire { width: 78px; height: 78px; background: rgba(255, 70, 70, .9); color: #fff; font-size: 14px; }
+  #touch button.active { transform: scale(.94); background: #ffe27a; }
+  body.touch #touch { display: flex; }
+  body.touch #help { display: none; }
+  body.touch #laser { bottom: 10px; }
+
+  @media (max-width: 640px) {
+    #weatherText .d { display: none; }
+    #score .value { font-size: 22px; }
+    #pool .icons { font-size: 17px; }
+    #weather { top: 76px; padding: 6px 10px; }
+    #sky { width: 36px; height: 36px; }
+    #sky .s { left: 5px; top: 5px; width: 26px; height: 26px; }
+    #sky .c { top: 6px; font-size: 24px; }
+    #weather.cloudy #sky .c { left: 4px; }
+    #pool .label { font-size: 9px; }
+    #hint { font-size: 12px; top: 136px; }
+  }
+</style>
+<script type="importmap">
+  { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="score" class="hud card"><div class="label">Puntos</div><div class="value" id="scoreVal">0</div></div>
+
+<div id="weather" class="hud card">
+  <div id="sky"><div class="s"></div><div class="c">☁️</div></div>
+  <div id="weatherText">
+    <div class="t" id="weatherTitle">SOL</div>
+    <div class="d" id="weatherDesc">Avanza y dispara · no gira</div>
+    <div id="weatherWarn"></div>
+  </div>
+</div>
+
+<div id="pool" class="hud card"><div class="label">Ponis en la piscina</div><div class="icons" id="poolIcons"></div></div>
+
+<div id="hint" class="hud card"></div>
+
+<div id="laser" class="hud card"><div class="label" id="laserLabel">LÁSER LISTO</div><div class="bar"><div class="fill" id="laserFill"></div></div></div>
+
+<div id="help" class="hud card">
+  <div><b>W</b><b>S</b> / <b>↑</b><b>↓</b> avanzar · retroceder (con sol)</div>
+  <div><b>A</b><b>D</b> / <b>←</b><b>→</b> girar (con nubes)</div>
+  <div><b>Espacio</b> láser (con sol, cada 5 s)</div>
+  <div><b>C</b> cámara · <b>P</b> pausa</div>
+</div>
+
+<button id="camBtn">🎥 Cámara</button>
+
+<div id="touch">
+  <div class="grp">
+    <button data-key="left">◀</button>
+    <button data-key="right">▶</button>
+  </div>
+  <div class="grp">
+    <div class="col">
+      <button data-key="up">▲</button>
+      <button data-key="down">▼</button>
+    </div>
+    <button class="fire" data-key="fire">LÁSER</button>
+  </div>
+</div>
+
+<div id="startScreen" class="overlay">
+  <div class="dialog">
+    <h1>☀️ Robot Solar vs Ponis</h1>
+    <h2>Piscina Mazagón · ¡que no se bañen los ponis!</h2>
+    <ul>
+      <li>Los ponis llegan <b>andando</b> hacia la piscina. Si llegan 5, se acaba el juego.</li>
+      <li>Con <b>sol</b> ☀️ el carrito solar puede <b>avanzar</b> y disparar, pero <b>no puede girar</b>.</li>
+      <li>Cuando una <b>nube</b> ☁️ tapa el sol puede <b>girar</b>, pero <b>no avanza</b>.</li>
+      <li>El <b>láser</b> solo funciona con sol y se recarga en <b>5 segundos</b>.</li>
+      <li>Poni alcanzado por el láser: <b>+2000</b>. Si te acercas a <b>3 metros</b> y huye galopando: <b>+500</b>.</li>
+    </ul>
+    <button id="startBtn">¡JUGAR!</button>
+  </div>
+</div>
+
+<div id="overScreen" class="overlay hidden">
+  <div class="dialog">
+    <h1>🏊 ¡5 ponis en la piscina!</h1>
+    <h2>Fin de la partida</h2>
+    <div class="big" id="finalScore">0</div>
+    <div class="stats">
+      <div>⚡ Láser: <b id="statLaser">0</b></div>
+      <div>🐎 Sustos: <b id="statScare">0</b></div>
+      <div>⏱️ Tiempo: <b id="statTime">0</b></div>
+      <div>🏆 Récord: <b id="statBest">0</b></div>
+    </div>
+    <button id="againBtn">Jugar otra vez</button>
+  </div>
+</div>
+
+<script type="module" src="game.js"></script>
+</body>
+</html>
