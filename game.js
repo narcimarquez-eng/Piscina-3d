@@ -505,9 +505,9 @@ const CFG = {
   arena: 36,              // el carrito se mueve dentro de este radio (m)
   spawnRadius: 43,        // los ponis salen del jardín, junto al fondo
   exitRadius: 44.5,       // al galopar más allá desaparecen en el jardín
-  robotSpeed: 5,          // m/s
-  robotReverse: 2.5,
-  robotTurn: 1.7,         // rad/s
+  robotSpeed: 6,          // m/s (+20 %)
+  robotReverse: 3,
+  robotTurn: 2.04,        // rad/s (+20 %)
   robotRadius: 1.0,
   robotScale: 1.4,        // el modelo mide ~1,1 m; lo agrandamos un poco
   ponyWalk: 1.3,          // m/s (sube con el tiempo)
@@ -879,7 +879,7 @@ document.querySelectorAll('#touch button').forEach((b) => {
 });
 
 // Cámara: va detrás del carrito; arrastrar la gira, rueda/pellizco acerca
-const cam = { yawOff: 0, pitch: 0.72, dist: 13, aerial: false };
+const cam = { yawOff: 0, pitch: 0.72, dist: 16, aerial: false };
 function toggleCam() { cam.aerial = !cam.aerial; cam.yawOff = 0; }
 $('camBtn').addEventListener('click', (e) => { e.currentTarget.blur(); toggleCam(); });
 const camPointers = new Map();
@@ -901,14 +901,14 @@ canvasEl.addEventListener('pointermove', (e) => {
   p.x = e.clientX; p.y = e.clientY;
   if (camPointers.size === 2) {
     const d = pinchLen();
-    if (pinchDist) cam.dist = clamp(cam.dist * pinchDist / d, 5, 30);
+    if (pinchDist) cam.dist = clamp(cam.dist * pinchDist / d, 5, 42);
     pinchDist = d;
   }
 });
 const camUp = (e) => { camPointers.delete(e.pointerId); pinchDist = camPointers.size === 2 ? pinchLen() : 0; };
 canvasEl.addEventListener('pointerup', camUp);
 canvasEl.addEventListener('pointercancel', camUp);
-canvasEl.addEventListener('wheel', (e) => { e.preventDefault(); cam.dist = clamp(cam.dist * Math.exp(e.deltaY * 0.001), 5, 30); }, { passive: false });
+canvasEl.addEventListener('wheel', (e) => { e.preventDefault(); cam.dist = clamp(cam.dist * Math.exp(e.deltaY * 0.001), 5, 42); }, { passive: false });
 
 // ---------- HUD ----------
 let score = 0;
