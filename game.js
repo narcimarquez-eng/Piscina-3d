@@ -849,7 +849,7 @@ function applyLight(f) {
 function updateWeatherHud() {
   $('weather').classList.toggle('cloudy', !weather.sunny);
   $('weatherTitle').textContent = weather.sunny ? '☀️ SOL' : '☁️ NUBES';
-  $('weatherDesc').textContent = weather.sunny ? 'Avanza y dispara · no gira' : 'Puede girar · no avanza';
+  $('weatherDesc').textContent = weather.sunny ? 'Se mueve libre y dispara' : 'Solo gira · no avanza ni dispara';
 }
 
 // ---------- Entrada ----------
@@ -1021,8 +1021,7 @@ function updateRobot(dt) {
     else hint('☁️ Sin sol no hay energía para avanzar');
   }
   if (wantTurn) {
-    if (!weather.sunny) targetTurn = wantTurn * CFG.robotTurn;
-    else hint('☀️ Con sol el carrito avanza, pero no puede girar');
+    targetTurn = wantTurn * CFG.robotTurn;   // gira siempre, con sol y con nubes
   }
   R.vel = damp(R.vel, targetVel, weather.sunny ? 4 : 8, dt);
   R.turnVel = damp(R.turnVel, targetTurn, 10, dt);

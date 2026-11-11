@@ -7,7 +7,7 @@ Dos juegos 3D en el navegador con el mismo escenario, generado a partir de una f
 ## 🐴 Ponis en la Piscina (`index.html`)
 Un carrito solar defiende la piscina para que los ponis no se bañen. Modelos: `assets/modelos/carrito_solar.glb` y `assets/modelos/pony.glb` (poni con animaciones de paso, galope y golpe).
 - Los ponis llegan **andando** desde el jardín. Si **5 ponis** entran en el agua, se acaba la partida.
-- Con **sol** el carrito puede **avanzar** (y retroceder) y disparar, pero **no gira**.
+- Con **sol** el carrito se mueve **libremente** (avanza, retrocede y gira) y puede disparar.
 - Cuando una **nube tapa el sol** puede **girar**, pero **no avanza**. Las nubes van y vienen en ciclos de duración variable (aviso 1 s antes).
 - El **láser** (sale de los ojos del carrito) solo funciona con sol y se recarga cada **5 s**. Poni alcanzado: **+2000**.
 - Si el carrito se acerca a **3 metros** de un poni, huye galopando fuera del escenario: **+500**.
