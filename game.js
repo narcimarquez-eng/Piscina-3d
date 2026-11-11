@@ -512,6 +512,9 @@ const CFG = {
   robotScale: 1.4,        // el modelo mide ~1,1 m; lo agrandamos un poco
   ponyWalk: 1.3,          // m/s (sube con el tiempo)
   ponyGallop: 8.5,
+  enterDepth: 0.72,       // cuánto tienen que meterse en la piscina (poolT: 1 = orilla, 0 = centro)
+  enterTime: 3,           // segundos parpadeando antes de contar como bañado
+  cloudySpeed: 0.5,       // con nubes el carrito va a la mitad de velocidad
   scareDist: 3,
   laserCooldown: 5,
   laserRange: 28,
@@ -551,7 +554,7 @@ function pushOut(o, extra) {
 function randomWaterPoint() {
   for (let i = 0; i < 200; i++) {
     const x = (Math.random() * 2 - 1) * RX * 1.1, z = (Math.random() * 2 - 1) * RZ * 1.1;
-    if (inWater(x, z) && poolT(x, z) < 0.8) return { x, z };
+    if (inWater(x, z) && poolT(x, z) < 0.55) return { x, z };
   }
   return { x: 0, z: 0 };
 }
@@ -661,6 +664,7 @@ function playAnim(p, name, fade = 0.25) {
 
 function makeFlee(p) {
   p.state = 'flee';
+  if (p.flash <= 0) p.mats.forEach((m) => { m.emissive.setHex(0x000000); m.emissiveIntensity = 0; });
   let ox = p.x, oz = p.z; const ol = Math.hypot(ox, oz) || 1; ox /= ol; oz /= ol;
   let ax = p.x - R.x, az = p.z - R.z; const al = Math.hypot(ax, az) || 1; ax /= al; az /= al;
   p.fleeHeading = Math.atan2(ox + ax * 0.6, oz + az * 0.6);
@@ -696,9 +700,33 @@ function updatePony(p, dt) {
       pushOut(p, 0.6);
       p.actions.Walk.timeScale = p.speed / 1.2;
       if (Math.hypot(p.x - R.x, p.z - R.z) <= CFG.scareDist) { scarePony(p); break; }
-      if (poolT(p.x, p.z) < 1) {
-        // ¡Al agua! Cuenta como poni bañándose
+      if (poolT(p.x, p.z) < CFG.enterDepth) {
+        // Se ha metido bastante: parpadea 3 s como aviso antes de contar
+        p.state = 'enter';
+        p.t = CFG.enterTime;
+        p.beep = 1;
+        splash(p.x, p.z, 16);
+        sfx.splash();
+        hint('⚠️ ¡Un poni se está metiendo en la piscina! ¡Sácalo!');
+      }
+      break;
+    }
+    case 'enter': {
+      // sigue vadeando despacio mientras parpadea
+      const dx = p.target.x - p.x, dz = p.target.z - p.z;
+      if (Math.hypot(dx, dz) > 0.5) {
+        p.heading = angleLerp(p.heading, Math.atan2(dx, dz), 1 - Math.exp(-2 * dt));
+        p.x += Math.sin(p.heading) * 0.45 * dt;
+        p.z += Math.cos(p.heading) * 0.45 * dt;
+      }
+      p.actions.Walk.timeScale = 0.45;
+      if (Math.hypot(p.x - R.x, p.z - R.z) <= CFG.scareDist) { scarePony(p); break; }
+      p.t -= dt;
+      if (p.t <= CFG.enterTime - p.beep) { sfx.warn(); p.beep++; }
+      if (p.t <= 0) {
+        // ¡Entrada consumida! Cuenta como poni bañándose
         p.state = 'swim';
+        p.mats.forEach((m) => { m.emissive.setHex(0x000000); m.emissiveIntensity = 0; });
         splash(p.x, p.z, 26);
         sfx.splash();
         poolCount++;
@@ -717,7 +745,7 @@ function updatePony(p, dt) {
       p.heading = angleLerp(p.heading, p.fleeHeading, 1 - Math.exp(-6 * dt));
       const nx = p.x + Math.sin(p.heading) * p.speed * dt;
       const nz = p.z + Math.cos(p.heading) * p.speed * dt;
-      if (poolT(nx, nz) < 1.15) p.fleeHeading += 0.12;   // rodea la piscina al huir
+      if (poolT(nx, nz) < 1.15 && poolT(nx, nz) < poolT(p.x, p.z)) p.fleeHeading += 0.12;   // rodea la piscina al huir
       else { p.x = nx; p.z = nz; }
       pushOut(p, 0.6);
       p.actions.Run.timeScale = 1.3;
@@ -742,10 +770,15 @@ function updatePony(p, dt) {
 
   // Altura: suelo en tierra; dentro del agua se hunde hasta nadar
   let yTarget = groundHeight(p.x, p.z);
-  if (p.state === 'swim') yTarget = Math.max(yTarget, -0.78 * p.scale + Math.sin(performance.now() / 450 + p.scale * 20) * 0.04);
+  if (poolT(p.x, p.z) < 1) yTarget = Math.max(yTarget, -0.78 * p.scale + Math.sin(performance.now() / 450 + p.scale * 20) * 0.04);
   p.y = damp(p.y, yTarget, 8, dt);
 
-  if (p.flash > 0) {
+  if (p.state === 'enter') {
+    // parpadeo naranja cada vez más rápido
+    const k = 1 - p.t / CFG.enterTime;
+    const on = Math.sin(performance.now() / 1000 * Math.PI * 2 * (2 + k * 6)) > 0;
+    p.mats.forEach((m) => { m.emissive.setHex(0xff9a00); m.emissiveIntensity = on ? 0.9 : 0; });
+  } else if (p.flash > 0) {
     p.flash -= dt;
     const on = p.flash > 0 && Math.floor(p.flash * 20) % 2 === 0;
     p.mats.forEach((m) => { m.emissive.setHex(on ? 0xff2020 : 0x000000); m.emissiveIntensity = on ? 1.0 : 0; });
@@ -799,7 +832,7 @@ function fireLaser() {
   const dx = Math.sin(R.heading), dz = Math.cos(R.heading);
   let best = null, bestT = CFG.laserRange;
   for (const p of ponies) {
-    if (p.state !== 'walk') continue;
+    if (p.state !== 'walk' && p.state !== 'enter') continue;
     const rx = p.x - R.x, rz = p.z - R.z;
     const t = rx * dx + rz * dz;
     if (t < 0 || t > bestT) continue;
@@ -849,7 +882,7 @@ function applyLight(f) {
 function updateWeatherHud() {
   $('weather').classList.toggle('cloudy', !weather.sunny);
   $('weatherTitle').textContent = weather.sunny ? '☀️ SOL' : '☁️ NUBES';
-  $('weatherDesc').textContent = weather.sunny ? 'Se mueve libre y dispara' : 'Solo gira · no avanza ni dispara';
+  $('weatherDesc').textContent = weather.sunny ? 'Se mueve libre y dispara' : 'Va a media velocidad · sin láser';
 }
 
 // ---------- Entrada ----------
@@ -946,7 +979,7 @@ function updateArrows() {
   let n = 0;
   const W = innerWidth, H = innerHeight, m = 26;
   for (const p of ponies) {
-    if (p.state !== 'walk') continue;
+    if (p.state !== 'walk' && p.state !== 'enter') continue;
     tv.set(p.x, 1, p.z).project(camera);
     let { x, y } = tv;
     const behind = tv.z > 1;
@@ -1006,6 +1039,7 @@ const sfx = (() => {
     splash: () => noise(0.7, 0.35, 1400),
     points: () => { tone('triangle', 880, 1320, 0.12, 0.08); tone('triangle', 1320, 1760, 0.12, 0.06, 0.08); },
     cloud: () => tone('sine', 300, 180, 0.4, 0.06),
+    warn: () => tone('square', 990, 990, 0.12, 0.05),
     sun: () => tone('sine', 400, 800, 0.35, 0.06),
     over: () => { tone('square', 440, 220, 0.4, 0.08); tone('square', 330, 110, 0.6, 0.08, 0.35); },
   };
@@ -1017,8 +1051,7 @@ function updateRobot(dt) {
   const wantTurn = (keys.left ? 1 : 0) - (keys.right ? 1 : 0);
   let targetVel = 0, targetTurn = 0;
   if (wantMove) {
-    if (weather.sunny) targetVel = wantMove > 0 ? CFG.robotSpeed : -CFG.robotReverse;
-    else hint('☁️ Sin sol no hay energía para avanzar');
+    targetVel = (wantMove > 0 ? CFG.robotSpeed : -CFG.robotReverse) * (weather.sunny ? 1 : CFG.cloudySpeed);
   }
   if (wantTurn) {
     targetTurn = wantTurn * CFG.robotTurn;   // gira siempre, con sol y con nubes
