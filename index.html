@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Piscina Mazagón 3D</title>
+<title>Ponis en la Piscina</title>
 <style>
   :root {
     --ink: #10243a;
@@ -13,7 +13,7 @@
     --cloud: #8796a8;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #8fd3ff; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); user-select: none; -webkit-user-select: none; touch-action: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #6fa9d8; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); user-select: none; -webkit-user-select: none; touch-action: none; }
   #game { position: fixed; inset: 0; }
   #game canvas { display: block; }
 
@@ -68,6 +68,8 @@
   .dialog .big { font-size: 42px; font-weight: 900; margin: 6px 0; }
   .dialog button { width: 100%; border: 0; border-radius: 12px; padding: 13px; font-size: 17px; font-weight: 800; color: #fff; background: linear-gradient(180deg, #ff5a5a, #e02020); cursor: pointer; }
   .dialog button:hover { filter: brightness(1.08); }
+  .dialog button:disabled { background: #9aa6b2; cursor: wait; }
+  .dialog .alt { font-size: 12px; opacity: .7; text-align: center; margin: 12px 0 0; }
   .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 16px; font-size: 14px; }
   .stats div { background: #f2f6fa; border-radius: 10px; padding: 8px 10px; }
 
@@ -95,7 +97,10 @@
   }
 </style>
 <script type="importmap">
-  { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+  { "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  } }
 </script>
 </head>
 <body>
@@ -122,10 +127,10 @@
   <div><b>W</b><b>S</b> / <b>↑</b><b>↓</b> avanzar · retroceder (con sol)</div>
   <div><b>A</b><b>D</b> / <b>←</b><b>→</b> girar (con nubes)</div>
   <div><b>Espacio</b> láser (con sol, cada 5 s)</div>
-  <div><b>C</b> cámara · <b>P</b> pausa</div>
+  <div><b>C</b> vista aérea · <b>P</b> pausa · arrastrar: girar cámara</div>
 </div>
 
-<button id="camBtn">🎥 Cámara</button>
+<button id="camBtn">🎥 Vista</button>
 
 <div id="touch">
   <div class="grp">
@@ -143,8 +148,8 @@
 
 <div id="startScreen" class="overlay">
   <div class="dialog">
-    <h1>☀️ Robot Solar vs Ponis</h1>
-    <h2>Piscina Mazagón · ¡que no se bañen los ponis!</h2>
+    <h1>☀️ Carrito Solar vs Ponis</h1>
+    <h2>¡Que no se bañen los ponis en la piscina!</h2>
     <ul>
       <li>Los ponis llegan <b>andando</b> hacia la piscina. Si llegan 5, se acaba el juego.</li>
       <li>Con <b>sol</b> ☀️ el carrito solar puede <b>avanzar</b> y disparar, pero <b>no puede girar</b>.</li>
@@ -152,7 +157,8 @@
       <li>El <b>láser</b> solo funciona con sol y se recarga en <b>5 segundos</b>.</li>
       <li>Poni alcanzado por el láser: <b>+2000</b>. Si te acercas a <b>3 metros</b> y huye galopando: <b>+500</b>.</li>
     </ul>
-    <button id="startBtn">¡JUGAR!</button>
+    <button id="startBtn" disabled>Cargando modelos…</button>
+    <p class="alt">Arrastra en la pantalla para girar la cámara y usa la rueda (o pellizca) para el zoom.<br>¿Prefieres flotar? <a href="donut.html">Juego del donut</a></p>
   </div>
 </div>
 
